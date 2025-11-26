@@ -207,27 +207,30 @@ async function startTranslation() {
 
             // 7. Fetch if not in cache
             if (!translation) {
-                try {
-                    translation = await translateText(text);
-                    if (translation) {
-                        translationCache.set(text, translation);
-                    }
-                } catch (err) {
-                    console.error('Translation failed for block:', err);
-                    continue;
+                translation = await translateText(text);
+                if (!translation) {
+                    // Translation failed (unknown error)
+                    translation = '翻译错误';
+                } else if (translation === 'ERROR:TIMEOUT') {
+                    // Request timed out
+                    translation = '翻译超时';
+                } else if (translation === 'ERROR:FAILED') {
+                    // Other error
+                    translation = '翻译错误';
+                } else {
+                    // Successful translation - cache it
+                    translationCache.set(text, translation);
                 }
             }
 
-            // 8. Render
-            if (translation) {
-                const translationLine = document.createElement('div');
-                translationLine.className = 'pt-translation-line';
-                translationLine.textContent = translation;
+            // 8. Render (always render, even if it's an error message)
+            const translationLine = document.createElement('div');
+            translationLine.className = 'pt-translation-line';
+            translationLine.textContent = translation;
 
-                // For inline elements (A, SPAN), we still want the translation to break to a new line
-                // appending to the element usually works because pt-translation-line is block
-                element.appendChild(translationLine);
-            }
+            // For inline elements (A, SPAN), we still want the translation to break to a new line
+            // appending to the element usually works because pt-translation-line is block
+            element.appendChild(translationLine);
         }
     } catch (error) {
         console.error('Translation process error:', error);
