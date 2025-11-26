@@ -6,10 +6,23 @@ function isEnglish(text) {
 }
 
 // Helper to call translation API via Background Script
+// Helper to call translation API via Background Script
 function translateText(text) {
     return new Promise((resolve) => {
+        let isResolved = false;
+        const timeoutId = setTimeout(() => {
+            if (!isResolved) {
+                isResolved = true;
+                resolve('ERROR:TIMEOUT');
+            }
+        }, 8000); // 8 second timeout (longer than background's 5s)
+
         chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
-            resolve(response ? response.translation : null);
+            if (!isResolved) {
+                isResolved = true;
+                clearTimeout(timeoutId);
+                resolve(response ? response.translation : null);
+            }
         });
     });
 }
@@ -20,6 +33,8 @@ function playAudio(text) {
         if (response && response.audioData) {
             const audio = new Audio(response.audioData);
             audio.play().catch(e => console.error('Audio play error', e));
+        } else {
+            alert('Failed to load audio (Timeout or Network Error).');
         }
     });
 }
@@ -342,10 +357,19 @@ async function showTranslationBubble(x, y, text) {
 
     const translation = await translateText(text);
     if (activeBubble) { // Check if still active
-        if (translation) {
+        if (translation && !translation.startsWith('ERROR:')) {
             activeBubble.textContent = translation;
         } else {
-            activeBubble.textContent = 'Error translating.';
+            const errorMap = {
+                'ERROR:BAIDU_54003': 'Baidu Error: Access Frequency Too High',
+                'ERROR:BAIDU_54004': 'Baidu Error: Insufficient Balance',
+                'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
+                'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
+                'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+                'ERROR:TIMEOUT': 'Translation Timed Out',
+                'ERROR:FAILED': 'Translation Failed'
+            };
+            activeBubble.textContent = errorMap[translation] || 'Translation failed.';
         }
     }
 }

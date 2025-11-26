@@ -33,6 +33,11 @@
       <button id="translateBtn">Translate</button>
     </div>
 
+    <div class="output-group">
+      <label for="outputText">Chinese (Simplified)</label>
+      <div id="outputText" class="output-area" placeholder="Translation will appear here..."></div>
+    </div>
+
     <div class="toggle-group">
       <label class="switch">
         <input type="checkbox" id="selectionToggle">
@@ -49,10 +54,30 @@
       <span class="toggle-label">Show Floating Button</span>
     </div>
 
-    <div class="output-group">
-      <label for="outputText">Chinese (Simplified)</label>
-      <div id="outputText" class="output-area" placeholder="Translation will appear here..."></div>
+    <div class="separator"></div>
+
+    <div class="toggle-group">
+      <label class="switch">
+        <input type="checkbox" id="baiduToggle">
+        <span class="slider round"></span>
+      </label>
+      <span class="toggle-label">Enable Baidu Translate</span>
     </div>
+
+    <div id="baiduSettings" class="settings-group hidden">
+      <div id="baiduKeyInputs">
+        <div class="input-group">
+          <label for="baiduAppId">App ID</label>
+          <input type="text" id="baiduAppId" placeholder="Enter App ID">
+        </div>
+        <div class="input-group">
+          <label for="baiduSecret">Secret Key</label>
+          <input type="password" id="baiduSecret" placeholder="Enter Secret Key">
+        </div>
+      </div>
+      <button id="saveBaiduKeys" class="secondary-btn">Save Keys</button>
+    </div>
+
   </div>
   <script src="popup.js"></script>
 </body>

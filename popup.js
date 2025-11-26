@@ -4,10 +4,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const selectionToggle = document.getElementById('selectionToggle');
   const floatingToggle = document.getElementById('floatingToggle');
 
+  const baiduToggle = document.getElementById('baiduToggle');
+  const baiduSettings = document.getElementById('baiduSettings');
+  const baiduAppId = document.getElementById('baiduAppId');
+  const baiduSecret = document.getElementById('baiduSecret');
+  const saveBaiduKeysBtn = document.getElementById('saveBaiduKeys');
+
+  const baiduKeyInputs = document.getElementById('baiduKeyInputs');
+
+  // Assuming translateBtn and outputText are defined elsewhere in the full document
+  const translateBtn = document.getElementById('translateBtn');
+  const outputText = document.getElementById('outputText');
+
   // Load states
-  chrome.storage.local.get(['selectionMode', 'floatingMode'], (result) => {
+  chrome.storage.local.get(['selectionMode', 'floatingMode', 'useBaidu', 'baiduAppId', 'baiduSecret', 'lastInput', 'lastOutput'], async (result) => {
     selectionToggle.checked = result.selectionMode || false;
     floatingToggle.checked = result.floatingMode || false;
+    baiduToggle.checked = result.useBaidu || false;
+
+    if (result.lastInput) inputText.value = result.lastInput;
+    if (result.lastOutput) outputText.textContent = result.lastOutput;
+
+    if (result.useBaidu) {
+      baiduSettings.classList.remove('hidden');
+    }
+
+    if (result.baiduAppId) baiduAppId.value = result.baiduAppId;
+    if (result.baiduSecret) baiduSecret.value = result.baiduSecret;
+
+    // Determine initial state of keys UI
+    if (result.baiduAppId && result.baiduSecret) {
+      // Keys exist, show "Edit" mode (inputs hidden)
+      baiduKeyInputs.classList.add('hidden');
+      saveBaiduKeysBtn.textContent = 'Edit Keys';
+    } else {
+      // Keys missing, show "Save" mode (inputs visible)
+      baiduKeyInputs.classList.remove('hidden');
+      saveBaiduKeysBtn.textContent = 'Save Keys';
+    }
+
+    // Try to load default keys if not set
+    if (!result.baiduAppId && !result.baiduSecret) {
+      try {
+        const response = await fetch(chrome.runtime.getURL('key.baidu'));
+        if (response.ok) {
+          const keys = await response.json();
+          if (keys.appid && keys.secret) {
+            baiduAppId.value = keys.appid;
+            baiduSecret.value = keys.secret;
+            // If we loaded defaults, we are in "Save" mode, user can click save
+          }
+        }
+      } catch (e) {
+        console.log('No default keys found');
+      }
+    }
+  });
+
+  // Save input text on change
+  inputText.addEventListener('input', () => {
+    chrome.storage.local.set({ lastInput: inputText.value });
   });
 
   // Toggle selection mode
@@ -26,44 +82,95 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tab) {
       chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_FLOATING', value: isChecked })
         .catch(err => {
-          // Ignore connection errors (e.g. on chrome:// pages or if content script not loaded)
           console.log('Could not send message to tab:', err);
         });
     }
   });
 
-  // Translation API Endpoint
-  // https://translate.google.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=TEXT
+  // Toggle Baidu mode
+  baiduToggle.addEventListener('change', () => {
+    const isChecked = baiduToggle.checked;
+    chrome.storage.local.set({ useBaidu: isChecked });
+    if (isChecked) {
+      baiduSettings.classList.remove('hidden');
+    } else {
+      baiduSettings.classList.add('hidden');
+    }
+  });
 
-  // TTS API Endpoint
-  // https://translate.google.com/translate_tts?ie=UTF-8&q=TEXT&tl=en&client=tw-ob
+  // Save/Edit Baidu Keys
+  saveBaiduKeysBtn.addEventListener('click', () => {
+    if (saveBaiduKeysBtn.textContent === 'Edit Keys') {
+      // Switch to Edit Mode
+      baiduKeyInputs.classList.remove('hidden');
+      saveBaiduKeysBtn.textContent = 'Save Keys';
+    } else {
+      // Save Keys
+      const appid = baiduAppId.value.trim();
+      const secret = baiduSecret.value.trim();
+
+      if (!appid || !secret) {
+        alert('Please enter both App ID and Secret Key.');
+        return;
+      }
+
+      chrome.storage.local.set({ baiduAppId: appid, baiduSecret: secret }, () => {
+        // Switch to View Mode
+        baiduKeyInputs.classList.add('hidden');
+        saveBaiduKeysBtn.textContent = 'Edit Keys';
+      });
+    }
+  });
 
   translateBtn.addEventListener('click', async () => {
     const text = inputText.value.trim();
-    if (!text) return;
+    if (!text) {
+      outputText.textContent = '';
+      chrome.storage.local.set({ lastOutput: '' });
+      return;
+    }
 
     outputText.textContent = 'Translating...';
+    // Don't save "Translating..." state, wait for result
 
     try {
-      const url = `https://translate.google.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=${encodeURIComponent(text)}`;
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-
-      const data = await response.json();
-      // Data structure: [[["Translated Text", "Original Text", ...], ...], ...]
-      // We need to join all parts if it's a long text
-      if (data && data[0]) {
-        const translatedText = data[0].map(part => part[0]).join('');
-        outputText.textContent = translatedText;
-      } else {
-        outputText.textContent = 'Translation failed.';
-      }
+      // Delegate to background script
+      chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = 'Error: ' + chrome.runtime.lastError.message;
+          outputText.textContent = msg;
+          chrome.storage.local.set({ lastOutput: msg });
+          return;
+        }
+        if (response && response.translation) {
+          if (response.translation.startsWith('ERROR:')) {
+            const errorMap = {
+              'ERROR:BAIDU_54003': 'Baidu Error: Access Frequency Too High',
+              'ERROR:BAIDU_54004': 'Baidu Error: Insufficient Balance (Check Quota/Bill)',
+              'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
+              'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User (Check App ID)',
+              'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+              'ERROR:TIMEOUT': 'Translation Timed Out',
+              'ERROR:FAILED': 'Translation Failed'
+            };
+            const errorMsg = errorMap[response.translation] || 'Translation failed: ' + response.translation;
+            outputText.textContent = errorMsg;
+            chrome.storage.local.set({ lastOutput: errorMsg });
+          } else {
+            outputText.textContent = response.translation;
+            chrome.storage.local.set({ lastOutput: response.translation });
+          }
+        } else {
+          const msg = 'Translation failed.';
+          outputText.textContent = msg;
+          chrome.storage.local.set({ lastOutput: msg });
+        }
+      });
     } catch (error) {
       console.error('Translation Error:', error);
-      outputText.textContent = 'Error: ' + error.message;
+      const msg = 'Error: ' + error.message;
+      outputText.textContent = msg;
+      chrome.storage.local.set({ lastOutput: msg });
     }
   });
 
@@ -71,12 +178,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = inputText.value.trim();
     if (!text) return;
 
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
-
-    const audio = new Audio(url);
-    audio.play().catch(error => {
-      console.error('Audio Playback Error:', error);
-      alert('Could not play audio. Check console for details.');
+    chrome.runtime.sendMessage({ action: 'SPEAK_TEXT', text }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('TTS Error:', chrome.runtime.lastError);
+        alert('TTS Error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      if (response && response.audioData) {
+        const audio = new Audio(response.audioData);
+        audio.play().catch(error => {
+          console.error('Audio Playback Error:', error);
+          alert('Could not play audio.');
+        });
+      } else {
+        alert('Failed to load audio (Timeout or Network Error).');
+      }
     });
   });
 });

@@ -242,3 +242,39 @@ input:checked+.slider:before {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+.separator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 8px 0;
+}
+
+/* Tighter spacing for Baidu settings */
+#baiduSettings .input-group {
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+#baiduSettings input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+#baiduSettings input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+#saveBaiduKeys {
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.hidden {
+  display: none !important;
+}
