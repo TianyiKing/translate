@@ -27,14 +27,18 @@ function translateText(text) {
     });
 }
 
-// Helper to play audio via Background Script
+// Helper to play audio via Background Script (uses offscreen document to bypass CSP)
 function playAudio(text) {
     chrome.runtime.sendMessage({ action: 'SPEAK_TEXT', text }, (response) => {
-        if (response && response.audioData) {
-            const audio = new Audio(response.audioData);
-            audio.play().catch(e => console.error('Audio play error', e));
-        } else {
-            alert('Failed to load audio (Timeout or Network Error).');
+        if (chrome.runtime.lastError) {
+            console.error('TTS Error:', chrome.runtime.lastError);
+            alert('Audio playback failed. Please try again.');
+            return;
+        }
+        if (!response || !response.success) {
+            const errorMsg = response?.error || 'Unknown error';
+            console.error('TTS playback failed:', errorMsg);
+            alert('Audio playback failed: ' + errorMsg);
         }
     });
 }

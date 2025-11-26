@@ -4,7 +4,8 @@
   "version": "1.0",
   "description": "A premium English to Chinese translator with TTS support.",
   "permissions": [
-    "storage"
+    "storage",
+    "offscreen"
   ],
   "host_permissions": [
     "https://translate.google.com/",

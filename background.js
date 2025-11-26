@@ -288,6 +288,32 @@ async function fetchGoogleTTS(text) {
     }
 }
 
+// Offscreen document management for audio playback
+let creatingOffscreen = null;
+
+async function ensureOffscreenDocument() {
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+
+    if (existingContexts.length > 0) {
+        return; // Already exists
+    }
+
+    // Avoid race condition by tracking creation
+    if (creatingOffscreen) {
+        await creatingOffscreen;
+    } else {
+        creatingOffscreen = chrome.offscreen.createDocument({
+            url: 'offscreen.html',
+            reasons: ['AUDIO_PLAYBACK'],
+            justification: 'Play TTS audio in extension context to bypass webpage CSP'
+        });
+        await creatingOffscreen;
+        creatingOffscreen = null;
+    }
+}
+
 // Load default keys on startup if needed
 chrome.runtime.onInstalled.addListener(async () => {
     const result = await chrome.storage.local.get(['baiduAppId', 'baiduSecret']);
@@ -327,17 +353,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === 'SPEAK_TEXT') {
-        chrome.storage.local.get(['useBaidu'], (result) => {
-            if (result.useBaidu) {
-                fetchBaiduTTS(request.text).then(audioData => {
-                    sendResponse({ audioData });
-                });
-            } else {
-                fetchGoogleTTS(request.text).then(audioData => {
-                    sendResponse({ audioData });
-                });
+        (async () => {
+            try {
+                const result = await chrome.storage.local.get(['useBaidu']);
+                const fetchTTS = result.useBaidu ? fetchBaiduTTS : fetchGoogleTTS;
+                const audioData = await fetchTTS(request.text);
+
+                if (audioData) {
+                    // Ensure offscreen document exists
+                    await ensureOffscreenDocument();
+                    // Send to offscreen for playback
+                    chrome.runtime.sendMessage({ action: 'PLAY_AUDIO', audioData }, (response) => {
+                        sendResponse(response || { success: false, error: 'No response from offscreen' });
+                    });
+                } else {
+                    sendResponse({ success: false, error: 'Failed to fetch audio' });
+                }
+            } catch (error) {
+                console.error('SPEAK_TEXT error:', error);
+                sendResponse({ success: false, error: error.message });
             }
-        });
+        })();
         return true; // Will respond asynchronously
+    }
+
+    // Handle PLAY_AUDIO response from offscreen (for popup.js)
+    if (request.action === 'PLAY_AUDIO') {
+        // This is handled by offscreen.js, ignore here
+        return false;
     }
 });

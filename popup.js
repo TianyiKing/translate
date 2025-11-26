@@ -184,14 +184,10 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('TTS Error: ' + chrome.runtime.lastError.message);
         return;
       }
-      if (response && response.audioData) {
-        const audio = new Audio(response.audioData);
-        audio.play().catch(error => {
-          console.error('Audio Playback Error:', error);
-          alert('Could not play audio.');
-        });
-      } else {
-        alert('Failed to load audio (Timeout or Network Error).');
+      if (!response || !response.success) {
+        const errorMsg = response?.error || 'Unknown error';
+        console.error('TTS playback failed:', errorMsg);
+        alert('Audio playback failed: ' + errorMsg);
       }
     });
   });
