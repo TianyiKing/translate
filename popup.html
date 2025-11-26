@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Translator</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Translator</h1>
+    </header>
+
+    <div class="input-group">
+      <label for="inputText">English</label>
+      <textarea id="inputText" placeholder="Type something to translate..."></textarea>
+      <button id="listenBtn" class="icon-btn" aria-label="Listen to English">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="actions">
+      <button id="translateBtn">Translate</button>
+    </div>
+
+    <div class="toggle-group">
+      <label class="switch">
+        <input type="checkbox" id="selectionToggle">
+        <span class="slider round"></span>
+      </label>
+      <span class="toggle-label">Selection Mode</span>
+    </div>
+
+    <div class="toggle-group">
+      <label class="switch">
+        <input type="checkbox" id="floatingToggle">
+        <span class="slider round"></span>
+      </label>
+      <span class="toggle-label">Show Floating Button</span>
+    </div>
+
+    <div class="output-group">
+      <label for="outputText">Chinese (Simplified)</label>
+      <div id="outputText" class="output-area" placeholder="Translation will appear here..."></div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+
+</html>

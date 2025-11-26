@@ -1,0 +1,182 @@
+/* Full Page Translation Line */
+.pt-translation-line {
+    display: block;
+    margin-top: 4px;
+    color: #4f46e5;
+    /* Primary color */
+    font-size: 0.9em;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.4;
+    background-color: rgba(79, 70, 229, 0.05);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+body.pt-hide-translations .pt-translation-line {
+    display: none !important;
+}
+
+/* Selection Popup (Future use) */
+.pt-selection-popup {
+    position: absolute;
+    z-index: 10000;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    padding: 6px;
+    display: flex;
+    gap: 8px;
+    font-family: 'Inter', sans-serif;
+}
+
+.pt-icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.pt-icon-btn:hover {
+    color: #4f46e5;
+    background-color: rgba(79, 70, 229, 0.1);
+}
+
+.pt-translation-bubble {
+    position: absolute;
+    z-index: 10000;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    padding: 12px;
+    max-width: 300px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: #111827;
+    line-height: 1.5;
+}
+
+/* Floating Widget */
+.pt-floating-widget {
+    position: fixed;
+    bottom: 20%;
+    right: 0;
+    z-index: 2147483647;
+    /* Max Z-index */
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    align-items: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(calc(100% - 12px));
+    /* Only show dock */
+}
+
+.pt-floating-widget:hover {
+    transform: translateX(0);
+}
+
+.pt-floating-dock {
+    width: 12px;
+    height: 48px;
+    background-color: #3b82f6;
+    /* Blue 500 */
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+    cursor: pointer;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Arrow icon in dock */
+.pt-floating-dock::before {
+    content: '';
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    display: inline-block;
+    padding: 2px;
+    transform: rotate(135deg);
+    transition: transform 0.3s;
+}
+
+.pt-floating-widget:hover .pt-floating-dock::before {
+    transform: rotate(-45deg);
+}
+
+.pt-floating-content {
+    background: white;
+    border-bottom-left-radius: 8px;
+    /* No border radius on top-left to merge with dock visually if needed, or keep it clean */
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pt-control-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: white;
+    white-space: nowrap;
+}
+
+.pt-btn-start {
+    background-color: #4f46e5;
+}
+
+.pt-btn-start:hover {
+    background-color: #4338ca;
+}
+
+.pt-btn-stop {
+    background-color: #f59e0b;
+}
+
+.pt-btn-stop:hover {
+    background-color: #d97706;
+}
+
+.pt-btn-cancel {
+    background-color: #ef4444;
+}
+
+.pt-btn-cancel:hover {
+    background-color: #dc2626;
+}
+
+.pt-btn-show {
+    background-color: #10b981;
+    /* Emerald 500 */
+}
+
+.pt-btn-show:hover {
+    background-color: #059669;
+}
+
+.pt-btn-translated {
+    background-color: #eab308;
+    /* Yellow 500 */
+}
+
+.pt-btn-translated:hover {
+    background-color: #ca8a04;
+    /* Yellow 600 */
+}
+
+.pt-hidden {
+    display: none !important;
+}
