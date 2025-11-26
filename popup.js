@@ -24,7 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Notify active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab) {
-      chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_FLOATING', value: isChecked });
+      chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_FLOATING', value: isChecked })
+        .catch(err => {
+          // Ignore connection errors (e.g. on chrome:// pages or if content script not loaded)
+          console.log('Could not send message to tab:', err);
+        });
     }
   });
 
