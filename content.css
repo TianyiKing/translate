@@ -85,8 +85,9 @@ body.pt-hide-translations .pt-translation-line {
 .pt-floating-dock {
     width: 12px;
     height: 48px;
-    background-color: #3b82f6;
-    /* Blue 500 */
+    background-color: rgba(59, 130, 246, 0.6);
+    /* Blue 500 with opacity */
+    backdrop-filter: blur(2px);
     border-top-left-radius: 6px;
     border-bottom-left-radius: 6px;
     cursor: pointer;
@@ -94,6 +95,11 @@ body.pt-hide-translations .pt-translation-line {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background-color 0.3s;
+}
+
+.pt-floating-widget:hover .pt-floating-dock {
+    background-color: rgba(59, 130, 246, 1);
 }
 
 /* Arrow icon in dock */
@@ -179,4 +185,14 @@ body.pt-hide-translations .pt-translation-line {
 
 .pt-hidden {
     display: none !important;
+}
+
+.pt-btn-clear {
+    background-color: #8b5cf6;
+    /* Violet 500 */
+}
+
+.pt-btn-clear:hover {
+    background-color: #7c3aed;
+    /* Violet 600 */
 }

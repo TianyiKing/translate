@@ -48,6 +48,20 @@ let isTranslating = false;
 let shouldStop = false;
 const translationCache = new Map(); // In-memory cache
 
+const BLOCK_TAGS = new Set([
+    'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'DIV', 'BLOCKQUOTE', 'PRE', 'ADDRESS',
+    'ARTICLE', 'ASIDE', 'CANVAS', 'DD', 'DL', 'DT', 'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER',
+    'FORM', 'HEADER', 'HR', 'MAIN', 'NAV', 'NOSCRIPT', 'OL', 'SECTION', 'TABLE', 'TFOOT', 'UL', 'VIDEO'
+]);
+
+function isBlock(node) {
+    return node.nodeType === Node.ELEMENT_NODE && BLOCK_TAGS.has(node.tagName);
+}
+
+function isBreak(node) {
+    return node.nodeType === Node.ELEMENT_NODE && node.tagName === 'BR';
+}
+
 // Floating Widget Logic
 let floatingWidget = null;
 let floatingMode = false;
@@ -65,7 +79,7 @@ function createFloatingWidget() {
     content.className = 'pt-floating-content';
 
     const startBtn = document.createElement('button');
-    startBtn.className = 'pt-control-btn pt-btn-start';
+    startBtn.className = 'pt-control-btn pt-btn-start pt-btn-main';
     startBtn.textContent = 'Translate';
     startBtn.onclick = () => {
         // Auto-show if hidden
@@ -101,6 +115,17 @@ function createFloatingWidget() {
 
     content.appendChild(startBtn);
     content.appendChild(stopBtn);
+    content.appendChild(startBtn);
+    content.appendChild(stopBtn);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'pt-control-btn pt-btn-clear';
+    clearBtn.textContent = 'Clear';
+    clearBtn.onclick = () => {
+        clearTranslations();
+    };
+    content.appendChild(clearBtn);
+
     content.appendChild(dismissBtn);
 
     widget.appendChild(dock);
@@ -131,8 +156,9 @@ function toggleTranslationVisibility(show) {
 
 function updateWidgetState(state) {
     if (!floatingWidget) return;
-    const startBtn = floatingWidget.querySelector('.pt-btn-start');
+    const startBtn = floatingWidget.querySelector('.pt-btn-main');
     const stopBtn = floatingWidget.querySelector('.pt-btn-stop');
+    // Clear button is always visible, no need to toggle
 
     if (state === 'translating') {
         startBtn.classList.add('pt-hidden');
@@ -151,6 +177,26 @@ function updateWidgetState(state) {
             startBtn.classList.remove('pt-btn-translated');
         }
     }
+}
+
+function clearTranslations() {
+    // 1. Remove all translation lines
+    const lines = document.querySelectorAll('.pt-translation-line');
+    lines.forEach(line => line.remove());
+
+    // 2. Reset data-translated attribute
+    const translatedElements = document.querySelectorAll('[data-translated="true"]');
+    translatedElements.forEach(el => {
+        delete el.dataset.translated;
+    });
+
+    // 3. Clear cache
+    translationCache.clear();
+
+    // 4. Reset state
+    isTranslating = false;
+    shouldStop = false;
+    updateWidgetState('idle');
 }
 
 function removeFloatingWidget() {
@@ -195,61 +241,90 @@ async function startTranslation() {
             if (element.dataset.translated === 'true' || element.classList.contains('pt-translation-line')) continue;
 
             // 2. Check if ancestor is already translated (prevent double translation)
-            if (element.closest('[data-translated="true"]')) continue;
+            // Only skip if this is an INLINE element and its ancestor is translated.
+            // Block elements (like P inside DIV) should be processed independently because
+            // the parent DIV's segment logic would have skipped the P.
+            if (!isBlock(element) && element.closest('[data-translated="true"]')) continue;
 
-            // 3. Container Detection: Check if element has significant direct text nodes
-            // If it has NO direct text (only child elements), skip it (treat as container)
-            // Exception: <pre> tags usually should be translated as a whole even if structured
-            let hasDirectText = false;
-            if (element.tagName === 'PRE') {
-                hasDirectText = true;
-            } else {
-                for (const node of element.childNodes) {
-                    if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim().length > 0) {
-                        hasDirectText = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!hasDirectText) continue; // Skip container, let children be processed
-
-            // 4. Check content validity
-            const text = element.innerText.trim();
-            if (!text || text.length < 2 || !isEnglish(text)) continue;
-
-            // 5. Mark as translated
+            // 3. Mark as translated immediately to prevent re-processing
             element.dataset.translated = 'true';
 
-            // 6. Check Cache
-            let translation = translationCache.get(text);
+            // 4. Segment Processing Logic
+            // We iterate over childNodes and group text/inline nodes into segments.
+            // We break segments on Block elements or BR tags.
 
-            // 7. Fetch if not in cache
-            if (!translation) {
-                translation = await translateText(text);
+            let currentSegmentNodes = [];
+            let currentSegmentText = "";
+
+            const processSegment = async () => {
+                const text = currentSegmentText.trim();
+                if (!text || text.length < 2 || !isEnglish(text)) return;
+
+                // Check Cache
+                let translation = translationCache.get(text);
+
+                // Fetch if not in cache
                 if (!translation) {
-                    // Translation failed (unknown error)
-                    translation = '翻译错误';
-                } else if (translation === 'ERROR:TIMEOUT') {
-                    // Request timed out
-                    translation = '翻译超时';
-                } else if (translation === 'ERROR:FAILED') {
-                    // Other error
-                    translation = '翻译错误';
-                } else {
-                    // Successful translation - cache it
-                    translationCache.set(text, translation);
+                    translation = await translateText(text);
+                    if (!translation) {
+                        translation = '翻译错误';
+                    } else if (translation === 'ERROR:TIMEOUT') {
+                        translation = '翻译超时';
+                    } else if (translation === 'ERROR:FAILED') {
+                        translation = '翻译错误';
+                    } else {
+                        translationCache.set(text, translation);
+                    }
+                }
+
+                // Render
+                const translationLine = document.createElement('div');
+                translationLine.className = 'pt-translation-line';
+                translationLine.textContent = translation;
+
+                // Insert after the last node of the segment
+                const lastNode = currentSegmentNodes[currentSegmentNodes.length - 1];
+                if (lastNode && lastNode.parentNode) {
+                    lastNode.parentNode.insertBefore(translationLine, lastNode.nextSibling);
+                }
+            };
+
+            for (const node of element.childNodes) {
+                if (shouldStop) break;
+
+                if (isBlock(node)) {
+                    await processSegment();
+                    currentSegmentNodes = [];
+                    currentSegmentText = "";
+                    continue;
+                }
+
+                if (isBreak(node)) {
+                    await processSegment();
+                    currentSegmentNodes = [];
+                    currentSegmentText = "";
+                    continue;
+                }
+
+                // Text or Inline Element
+                // For elements, we use innerText to respect hidden/visible state
+                // For text nodes, we use nodeValue
+                let nodeText = "";
+                if (node.nodeType === Node.TEXT_NODE) {
+                    nodeText = node.nodeValue;
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    nodeText = node.innerText;
+                }
+
+                if (nodeText) {
+                    currentSegmentNodes.push(node);
+                    currentSegmentText += nodeText;
                 }
             }
-
-            // 8. Render (always render, even if it's an error message)
-            const translationLine = document.createElement('div');
-            translationLine.className = 'pt-translation-line';
-            translationLine.textContent = translation;
-
-            // For inline elements (A, SPAN), we still want the translation to break to a new line
-            // appending to the element usually works because pt-translation-line is block
-            element.appendChild(translationLine);
+            // Process final segment
+            if (!shouldStop) {
+                await processSegment();
+            }
         }
     } catch (error) {
         console.error('Translation process error:', error);
