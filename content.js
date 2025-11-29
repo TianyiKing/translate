@@ -15,7 +15,11 @@ function translateText(text) {
                 isResolved = true;
                 resolve('ERROR:TIMEOUT');
             }
-        }, 8000); // 8 second timeout (longer than background's 5s)
+            if (!isResolved) {
+                isResolved = true;
+                resolve('ERROR:TIMEOUT');
+            }
+        }, 5000); // 5 second timeout
 
         chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
             if (!isResolved) {
@@ -342,15 +346,157 @@ async function startTranslation() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'TOGGLE_FLOATING') {
         toggleFloatingWidget(request.value);
+    } else if (request.action === 'TOGGLE_SHORTCUTS') {
+        shortcutsEnabled = request.value;
     }
 });
 
 // Initialize
-chrome.storage.local.get(['floatingMode'], (result) => {
+chrome.storage.local.get(['floatingMode', 'shortcutsEnabled'], (result) => {
     if (result.floatingMode) {
         toggleFloatingWidget(true);
     }
+    shortcutsEnabled = result.shortcutsEnabled || false;
 });
+
+// Shortcuts Logic
+let shortcutsEnabled = false;
+let mouseX = 0;
+let mouseY = 0;
+
+document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+});
+
+document.addEventListener('keydown', async (e) => {
+    if (!shortcutsEnabled) return;
+
+    // Option + A: Translate
+    if (e.altKey && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+        if (text && isEnglish(text)) {
+            // Calculate position: centered above text box, slightly below mouse
+            // User request: "mouse position should be in the middle of the text box's top edge"
+            // "if no space below, show above"
+            // "if mouse too far right, shift text box left"
+
+            await showTranslationBubbleAtMouse(text);
+        }
+    }
+
+    // Option + S: Speak
+    if (e.altKey && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+        if (text) {
+            playAudio(text);
+        }
+    }
+});
+
+async function showTranslationBubbleAtMouse(text) {
+    removeBubble();
+    removePopup(); // Also remove selection popup if present
+
+    const bubble = document.createElement('div');
+    bubble.className = 'pt-translation-bubble';
+    bubble.textContent = 'Translating...';
+
+    // Initial style to get dimensions (hidden but rendered)
+    bubble.style.visibility = 'hidden';
+    document.body.appendChild(bubble);
+    activeBubble = bubble;
+
+    // Helper to update position
+    const updatePosition = () => {
+        if (!activeBubble) return;
+
+        // Get dimensions
+        const rect = bubble.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        const gap = 15; // Increased gap
+
+        // Calculate Position
+        // Default: Mouse is at top-center of bubble (so bubble is below mouse)
+        // Bubble Top = MouseY + gap
+        // Bubble Left = MouseX - (Width / 2)
+
+        let top = mouseY + gap;
+        let left = mouseX - (width / 2);
+
+        // Viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // 1. Vertical Adjustment
+        // Only flip to above if it strictly overflows bottom AND there is space above
+        if (top + height > viewportHeight) {
+            // Check if there is enough space above
+            if (mouseY - gap - height > 0) {
+                // Show above: Bubble Bottom = MouseY - gap
+                top = mouseY - gap - height;
+            } else {
+                // Not enough space above either, or just slightly overflowing bottom.
+                // If it overflows bottom, we might just have to clamp it to bottom edge?
+                // But user prefers "below".
+                // Let's try to keep it below but shift it up slightly if needed, 
+                // OR if it really doesn't fit, put it above.
+                // User said: "If below space is not enough, then place above."
+                // So the flip logic is correct, but maybe we should ensure we don't flip prematurely.
+
+                // Let's stick to the flip, but maybe clamp 'top' if it's above?
+                // Actually, the previous logic was fine for "if not enough space below".
+                // Maybe the issue was the gap was too small so it felt "on top".
+                // With gap=15, it should be better.
+
+                // Let's also ensure we don't go off the top if we flip.
+                top = Math.max(10, mouseY - gap - height);
+            }
+        }
+
+        // 2. Horizontal Adjustment
+        // If left < 0, shift right
+        if (left < 10) {
+            left = 10;
+        }
+        // If right > viewportWidth, shift left
+        if (left + width > viewportWidth - 10) {
+            left = viewportWidth - width - 10;
+        }
+
+        // Apply styles
+        bubble.style.top = `${top}px`;
+        bubble.style.left = `${left}px`;
+        bubble.style.visibility = 'visible';
+    };
+
+    // Initial Position
+    updatePosition();
+
+    const translation = await translateText(text);
+    if (activeBubble) { // Check if still active
+        if (translation && !translation.startsWith('ERROR:')) {
+            activeBubble.textContent = translation;
+        } else {
+            const errorMap = {
+                'ERROR:BAIDU_54003': 'Baidu Error: Access Frequency Too High',
+                'ERROR:BAIDU_54004': 'Baidu Error: Insufficient Balance',
+                'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
+                'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
+                'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+                'ERROR:TIMEOUT': 'Translation Timed Out',
+                'ERROR:FAILED': 'Translation Failed'
+            };
+            activeBubble.textContent = errorMap[translation] || 'Translation failed.';
+        }
+
+        // Re-calculate position after content update
+        updatePosition();
+    }
+}
 
 // Selection Translation Logic
 let selectionMode = false;

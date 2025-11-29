@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const listenBtn = document.getElementById('listenBtn');
   const selectionToggle = document.getElementById('selectionToggle');
   const floatingToggle = document.getElementById('floatingToggle');
+  const shortcutsToggle = document.getElementById('shortcutsToggle');
 
   const baiduToggle = document.getElementById('baiduToggle');
   const baiduSettings = document.getElementById('baiduSettings');
@@ -17,9 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const outputText = document.getElementById('outputText');
 
   // Load states
-  chrome.storage.local.get(['selectionMode', 'floatingMode', 'useBaidu', 'baiduAppId', 'baiduSecret', 'lastInput', 'lastOutput'], async (result) => {
+  chrome.storage.local.get(['selectionMode', 'floatingMode', 'shortcutsEnabled', 'useBaidu', 'baiduAppId', 'baiduSecret', 'lastInput', 'lastOutput'], async (result) => {
     selectionToggle.checked = result.selectionMode || false;
     floatingToggle.checked = result.floatingMode || false;
+    shortcutsToggle.checked = result.shortcutsEnabled || false;
     baiduToggle.checked = result.useBaidu || false;
 
     if (result.lastInput) inputText.value = result.lastInput;
@@ -81,6 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab) {
       chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_FLOATING', value: isChecked })
+        .catch(err => {
+          console.log('Could not send message to tab:', err);
+        });
+    }
+  });
+
+  // Toggle shortcuts
+  shortcutsToggle.addEventListener('change', async () => {
+    const isChecked = shortcutsToggle.checked;
+    chrome.storage.local.set({ shortcutsEnabled: isChecked });
+
+    // Notify active tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) {
+      chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_SHORTCUTS', value: isChecked })
         .catch(err => {
           console.log('Could not send message to tab:', err);
         });

@@ -1,5 +1,7 @@
 // Background Script for Premium Translator
 
+const TIMEOUT_MS = 5000;
+
 // MD5 Helper (Compact implementation)
 function md5(string) {
     function RotateLeft(lValue, iShiftBits) {
@@ -186,7 +188,7 @@ async function fetchBaiduTranslation(text, appid, secret) {
         const url = `https://api.fanyi.baidu.com/api/trans/vip/translate?q=${encodeURIComponent(text)}&from=en&to=zh&appid=${appid}&salt=${salt}&sign=${sign}`;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -219,7 +221,7 @@ async function fetchGoogleTranslation(text) {
     try {
         const url = `https://translate.google.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=${encodeURIComponent(text)}`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS); // 5-second timeout
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -247,7 +249,7 @@ async function fetchBaiduTTS(text) {
         // Using fanyi.baidu.com endpoint which is more accessible
         const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodeURIComponent(text)}&spd=3&source=web`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS); // 5-second timeout
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -270,7 +272,7 @@ async function fetchGoogleTTS(text) {
     try {
         const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS); // 5-second timeout
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
