@@ -1,6 +1,7 @@
 // Background Script for Premium Translator
 
 const TIMEOUT_MS = 5000;
+const LOCAL_TIMEOUT_MS = 30000;
 
 // MD5 Helper (Compact implementation)
 function md5(string) {
@@ -243,6 +244,65 @@ async function fetchGoogleTranslation(text) {
     }
 }
 
+// Helper to fetch Local Model translation (mlx-vlm OpenAI-compatible /v1/chat/completions)
+async function fetchLocalModelTranslation(text, modelName, port) {
+    try {
+        const url = `http://localhost:${port}/v1/chat/completions`;
+        const body = {
+            model: modelName,
+            messages: [
+                {
+                    role: 'system',
+                    content: "You are a professional English-to-Chinese translator. Translate the user's text into Simplified Chinese. Output ONLY the translation, no explanations, no quotes, no original text."
+                },
+                { role: 'user', content: text }
+            ],
+            temperature: 0,
+            stream: false,
+            max_tokens: 2048
+        };
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), LOCAL_TIMEOUT_MS);
+
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+        } catch (networkError) {
+            clearTimeout(timeoutId);
+            if (networkError.name === 'AbortError') throw networkError;
+            // fetch() throws TypeError for connection refused / DNS failure / network down
+            console.error('Local Model connection error:', networkError);
+            return 'ERROR:LOCAL_CONNREFUSED';
+        }
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            console.error('Local Model HTTP error:', response.status, response.statusText);
+            return 'ERROR:FAILED';
+        }
+        const data = await response.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (typeof content !== 'string' || !content.trim()) {
+            console.error('Local Model invalid response:', data);
+            return 'ERROR:FAILED';
+        }
+        return content.trim();
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error('Local Model Error: Request timed out');
+            return 'ERROR:TIMEOUT';
+        }
+        console.error('Local Model Error:', error);
+        return 'ERROR:FAILED';
+    }
+}
+
 // Helper to fetch Baidu TTS
 async function fetchBaiduTTS(text) {
     try {
@@ -318,7 +378,12 @@ async function ensureOffscreenDocument() {
 
 // Load default keys on startup if needed
 chrome.runtime.onInstalled.addListener(async () => {
-    const result = await chrome.storage.local.get(['baiduAppId', 'baiduSecret']);
+    const result = await chrome.storage.local.get([
+        'baiduAppId', 'baiduSecret',
+        'useBaidu', 'provider', 'ttsProvider',
+        'localModelName', 'localModelPort'
+    ]);
+
     if (!result.baiduAppId && !result.baiduSecret) {
         try {
             const response = await fetch(chrome.runtime.getURL('key.baidu'));
@@ -336,29 +401,53 @@ chrome.runtime.onInstalled.addListener(async () => {
             console.log('No default keys found');
         }
     }
+
+    // One-time migration from useBaidu (bool) to provider/ttsProvider (enum)
+    const migration = {};
+    if (!result.provider) {
+        migration.provider = result.useBaidu ? 'baidu' : 'google';
+    }
+    if (!result.ttsProvider) {
+        migration.ttsProvider = result.useBaidu ? 'baidu' : 'google';
+    }
+    if (!result.localModelName) {
+        migration.localModelName = 'mlx-community/gemma-4-31b-it-mxfp4';
+    }
+    if (!result.localModelPort) {
+        migration.localModelPort = '8099';
+    }
+    if (Object.keys(migration).length > 0) {
+        await chrome.storage.local.set(migration);
+    }
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'TRANSLATE_TEXT') {
-        chrome.storage.local.get(['useBaidu', 'baiduAppId', 'baiduSecret'], (result) => {
-            if (result.useBaidu && result.baiduAppId && result.baiduSecret) {
-                fetchBaiduTranslation(request.text, result.baiduAppId, result.baiduSecret).then(translation => {
-                    sendResponse({ translation });
-                });
-            } else {
-                fetchGoogleTranslation(request.text).then(translation => {
-                    sendResponse({ translation });
-                });
+        chrome.storage.local.get(
+            ['provider', 'baiduAppId', 'baiduSecret', 'localModelName', 'localModelPort'],
+            (result) => {
+                const provider = result.provider || 'google';
+                let promise;
+                if (provider === 'local') {
+                    const modelName = result.localModelName || 'mlx-community/gemma-4-31b-it-mxfp4';
+                    const port = result.localModelPort || '8099';
+                    promise = fetchLocalModelTranslation(request.text, modelName, port);
+                } else if (provider === 'baidu' && result.baiduAppId && result.baiduSecret) {
+                    promise = fetchBaiduTranslation(request.text, result.baiduAppId, result.baiduSecret);
+                } else {
+                    promise = fetchGoogleTranslation(request.text);
+                }
+                promise.then(translation => sendResponse({ translation }));
             }
-        });
+        );
         return true; // Will respond asynchronously
     }
 
     if (request.action === 'SPEAK_TEXT') {
         (async () => {
             try {
-                const result = await chrome.storage.local.get(['useBaidu']);
-                const fetchTTS = result.useBaidu ? fetchBaiduTTS : fetchGoogleTTS;
+                const result = await chrome.storage.local.get(['ttsProvider']);
+                const fetchTTS = result.ttsProvider === 'baidu' ? fetchBaiduTTS : fetchGoogleTTS;
                 const audioData = await fetchTTS(request.text);
 
                 if (audioData) {

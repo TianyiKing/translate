@@ -249,13 +249,13 @@ input:checked+.slider:before {
   margin: 8px 0;
 }
 
-/* Tighter spacing for Baidu settings */
-#baiduSettings .input-group {
+/* Tighter spacing for settings groups (Baidu, Local Model) */
+.settings-group .input-group {
   gap: 4px;
   margin-bottom: 12px;
 }
 
-#baiduSettings input {
+.settings-group input {
   width: 100%;
   padding: 8px;
   border: 1px solid var(--border-color);
@@ -264,15 +264,46 @@ input:checked+.slider:before {
   box-sizing: border-box;
 }
 
-#baiduSettings input:focus {
+.settings-group input:focus {
   outline: none;
   border-color: var(--primary-color);
 }
 
-#saveBaiduKeys {
+.settings-group .secondary-btn {
   margin-top: 4px;
+  margin-left: 0;
   width: 100%;
   justify-content: center;
+}
+
+/* Radio group (provider selection) */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radio-group .group-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.radio-item input[type="radio"] {
+  accent-color: var(--primary-color);
+  margin: 0;
 }
 
 .hidden {

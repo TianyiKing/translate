@@ -5,63 +5,119 @@ document.addEventListener('DOMContentLoaded', () => {
   const floatingToggle = document.getElementById('floatingToggle');
   const shortcutsToggle = document.getElementById('shortcutsToggle');
 
-  const baiduToggle = document.getElementById('baiduToggle');
+  const providerRadios = document.querySelectorAll('input[name="provider"]');
+  const ttsProviderRadios = document.querySelectorAll('input[name="ttsProvider"]');
+
   const baiduSettings = document.getElementById('baiduSettings');
   const baiduAppId = document.getElementById('baiduAppId');
   const baiduSecret = document.getElementById('baiduSecret');
   const saveBaiduKeysBtn = document.getElementById('saveBaiduKeys');
-
   const baiduKeyInputs = document.getElementById('baiduKeyInputs');
 
-  // Assuming translateBtn and outputText are defined elsewhere in the full document
+  const localModelSettings = document.getElementById('localModelSettings');
+  const localModelName = document.getElementById('localModelName');
+  const localModelPort = document.getElementById('localModelPort');
+  const saveLocalModelBtn = document.getElementById('saveLocalModel');
+  const localModelInputs = document.getElementById('localModelInputs');
+
   const translateBtn = document.getElementById('translateBtn');
   const outputText = document.getElementById('outputText');
 
-  // Load states
-  chrome.storage.local.get(['selectionMode', 'floatingMode', 'shortcutsEnabled', 'useBaidu', 'baiduAppId', 'baiduSecret', 'lastInput', 'lastOutput'], async (result) => {
-    selectionToggle.checked = result.selectionMode || false;
-    floatingToggle.checked = result.floatingMode || false;
-    shortcutsToggle.checked = result.shortcutsEnabled || false;
-    baiduToggle.checked = result.useBaidu || false;
+  const DEFAULT_LOCAL_MODEL = 'mlx-community/gemma-4-31b-it-mxfp4';
+  const DEFAULT_LOCAL_PORT = '8099';
 
-    if (result.lastInput) inputText.value = result.lastInput;
-    if (result.lastOutput) outputText.textContent = result.lastOutput;
+  function setRadio(radios, value) {
+    radios.forEach(r => { r.checked = r.value === value; });
+  }
 
-    if (result.useBaidu) {
+  function getRadio(radios) {
+    for (const r of radios) if (r.checked) return r.value;
+    return null;
+  }
+
+  function updateBaiduSettingsVisibility(provider, ttsProvider) {
+    if (provider === 'baidu' || ttsProvider === 'baidu') {
       baiduSettings.classList.remove('hidden');
-    }
-
-    if (result.baiduAppId) baiduAppId.value = result.baiduAppId;
-    if (result.baiduSecret) baiduSecret.value = result.baiduSecret;
-
-    // Determine initial state of keys UI
-    if (result.baiduAppId && result.baiduSecret) {
-      // Keys exist, show "Edit" mode (inputs hidden)
-      baiduKeyInputs.classList.add('hidden');
-      saveBaiduKeysBtn.textContent = 'Edit Keys';
     } else {
-      // Keys missing, show "Save" mode (inputs visible)
-      baiduKeyInputs.classList.remove('hidden');
-      saveBaiduKeysBtn.textContent = 'Save Keys';
+      baiduSettings.classList.add('hidden');
     }
+  }
 
-    // Try to load default keys if not set
-    if (!result.baiduAppId && !result.baiduSecret) {
-      try {
-        const response = await fetch(chrome.runtime.getURL('key.baidu'));
-        if (response.ok) {
-          const keys = await response.json();
-          if (keys.appid && keys.secret) {
-            baiduAppId.value = keys.appid;
-            baiduSecret.value = keys.secret;
-            // If we loaded defaults, we are in "Save" mode, user can click save
-          }
-        }
-      } catch (e) {
-        console.log('No default keys found');
-      }
+  function updateLocalModelSettingsVisibility(provider) {
+    if (provider === 'local') {
+      localModelSettings.classList.remove('hidden');
+    } else {
+      localModelSettings.classList.add('hidden');
     }
-  });
+  }
+
+  // Load states
+  chrome.storage.local.get(
+    [
+      'selectionMode', 'floatingMode', 'shortcutsEnabled',
+      'provider', 'ttsProvider', 'useBaidu',
+      'baiduAppId', 'baiduSecret',
+      'localModelName', 'localModelPort',
+      'lastInput', 'lastOutput'
+    ],
+    async (result) => {
+      selectionToggle.checked = result.selectionMode || false;
+      floatingToggle.checked = result.floatingMode || false;
+      shortcutsToggle.checked = result.shortcutsEnabled || false;
+
+      // Migrate from legacy useBaidu if provider/ttsProvider not yet set
+      const provider = result.provider
+        || (result.useBaidu ? 'baidu' : 'google');
+      const ttsProvider = result.ttsProvider
+        || (result.useBaidu ? 'baidu' : 'google');
+      setRadio(providerRadios, provider);
+      setRadio(ttsProviderRadios, ttsProvider);
+
+      if (result.lastInput) inputText.value = result.lastInput;
+      if (result.lastOutput) outputText.textContent = result.lastOutput;
+
+      // Baidu settings UI
+      if (result.baiduAppId) baiduAppId.value = result.baiduAppId;
+      if (result.baiduSecret) baiduSecret.value = result.baiduSecret;
+      if (result.baiduAppId && result.baiduSecret) {
+        baiduKeyInputs.classList.add('hidden');
+        saveBaiduKeysBtn.textContent = 'Edit Keys';
+      } else {
+        baiduKeyInputs.classList.remove('hidden');
+        saveBaiduKeysBtn.textContent = 'Save Keys';
+      }
+
+      // Try to load default Baidu keys if not set
+      if (!result.baiduAppId && !result.baiduSecret) {
+        try {
+          const response = await fetch(chrome.runtime.getURL('key.baidu'));
+          if (response.ok) {
+            const keys = await response.json();
+            if (keys.appid && keys.secret) {
+              baiduAppId.value = keys.appid;
+              baiduSecret.value = keys.secret;
+            }
+          }
+        } catch (e) {
+          console.log('No default Baidu keys found');
+        }
+      }
+
+      // Local Model settings UI
+      localModelName.value = result.localModelName || DEFAULT_LOCAL_MODEL;
+      localModelPort.value = result.localModelPort || DEFAULT_LOCAL_PORT;
+      if (result.localModelName && result.localModelPort) {
+        localModelInputs.classList.add('hidden');
+        saveLocalModelBtn.textContent = 'Edit Settings';
+      } else {
+        localModelInputs.classList.remove('hidden');
+        saveLocalModelBtn.textContent = 'Save Settings';
+      }
+
+      updateBaiduSettingsVisibility(provider, ttsProvider);
+      updateLocalModelSettingsVisibility(provider);
+    }
+  );
 
   // Save input text on change
   inputText.addEventListener('input', () => {
@@ -70,22 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Toggle selection mode
   selectionToggle.addEventListener('change', () => {
-    const isChecked = selectionToggle.checked;
-    chrome.storage.local.set({ selectionMode: isChecked });
+    chrome.storage.local.set({ selectionMode: selectionToggle.checked });
   });
 
   // Toggle floating mode
   floatingToggle.addEventListener('change', async () => {
     const isChecked = floatingToggle.checked;
     chrome.storage.local.set({ floatingMode: isChecked });
-
-    // Notify active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab) {
       chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_FLOATING', value: isChecked })
-        .catch(err => {
-          console.log('Could not send message to tab:', err);
-        });
+        .catch(err => console.log('Could not send message to tab:', err));
     }
   });
 
@@ -93,53 +144,77 @@ document.addEventListener('DOMContentLoaded', () => {
   shortcutsToggle.addEventListener('change', async () => {
     const isChecked = shortcutsToggle.checked;
     chrome.storage.local.set({ shortcutsEnabled: isChecked });
-
-    // Notify active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab) {
       chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_SHORTCUTS', value: isChecked })
-        .catch(err => {
-          console.log('Could not send message to tab:', err);
-        });
+        .catch(err => console.log('Could not send message to tab:', err));
     }
   });
 
-  // Toggle Baidu mode
-  baiduToggle.addEventListener('change', () => {
-    const isChecked = baiduToggle.checked;
-    chrome.storage.local.set({ useBaidu: isChecked });
-    if (isChecked) {
-      baiduSettings.classList.remove('hidden');
-    } else {
-      baiduSettings.classList.add('hidden');
-    }
+  // Provider radio change
+  providerRadios.forEach(r => {
+    r.addEventListener('change', () => {
+      const provider = getRadio(providerRadios);
+      const ttsProvider = getRadio(ttsProviderRadios);
+      chrome.storage.local.set({ provider });
+      updateBaiduSettingsVisibility(provider, ttsProvider);
+      updateLocalModelSettingsVisibility(provider);
+    });
+  });
+
+  // TTS provider radio change
+  ttsProviderRadios.forEach(r => {
+    r.addEventListener('change', () => {
+      const provider = getRadio(providerRadios);
+      const ttsProvider = getRadio(ttsProviderRadios);
+      chrome.storage.local.set({ ttsProvider });
+      updateBaiduSettingsVisibility(provider, ttsProvider);
+    });
   });
 
   // Save/Edit Baidu Keys
   saveBaiduKeysBtn.addEventListener('click', () => {
     if (saveBaiduKeysBtn.textContent === 'Edit Keys') {
-      // Switch to Edit Mode
       baiduKeyInputs.classList.remove('hidden');
       saveBaiduKeysBtn.textContent = 'Save Keys';
-    } else {
-      // Save Keys
-      const appid = baiduAppId.value.trim();
-      const secret = baiduSecret.value.trim();
-
-      if (!appid || !secret) {
-        alert('Please enter both App ID and Secret Key.');
-        return;
-      }
-
-      chrome.storage.local.set({ baiduAppId: appid, baiduSecret: secret }, () => {
-        // Switch to View Mode
-        baiduKeyInputs.classList.add('hidden');
-        saveBaiduKeysBtn.textContent = 'Edit Keys';
-      });
+      return;
     }
+    const appid = baiduAppId.value.trim();
+    const secret = baiduSecret.value.trim();
+    if (!appid || !secret) {
+      alert('Please enter both App ID and Secret Key.');
+      return;
+    }
+    chrome.storage.local.set({ baiduAppId: appid, baiduSecret: secret }, () => {
+      baiduKeyInputs.classList.add('hidden');
+      saveBaiduKeysBtn.textContent = 'Edit Keys';
+    });
   });
 
-  translateBtn.addEventListener('click', async () => {
+  // Save/Edit Local Model Settings
+  saveLocalModelBtn.addEventListener('click', () => {
+    if (saveLocalModelBtn.textContent === 'Edit Settings') {
+      localModelInputs.classList.remove('hidden');
+      saveLocalModelBtn.textContent = 'Save Settings';
+      return;
+    }
+    const name = localModelName.value.trim();
+    const port = localModelPort.value.trim();
+    if (!name || !port) {
+      alert('Please enter both Model Name and Port.');
+      return;
+    }
+    if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+      alert('Port must be a number between 1 and 65535.');
+      return;
+    }
+    chrome.storage.local.set({ localModelName: name, localModelPort: port }, () => {
+      localModelInputs.classList.add('hidden');
+      saveLocalModelBtn.textContent = 'Edit Settings';
+    });
+  });
+
+  translateBtn.addEventListener('click', () => {
     const text = inputText.value.trim();
     if (!text) {
       outputText.textContent = '';
@@ -148,10 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     outputText.textContent = 'Translating...';
-    // Don't save "Translating..." state, wait for result
 
     try {
-      // Delegate to background script
       chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
         if (chrome.runtime.lastError) {
           const msg = 'Error: ' + chrome.runtime.lastError.message;
@@ -167,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
               'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
               'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User (Check App ID)',
               'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+              'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
               'ERROR:TIMEOUT': 'Translation Timed Out',
               'ERROR:FAILED': 'Translation Failed'
             };

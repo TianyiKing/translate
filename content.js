@@ -487,6 +487,7 @@ async function showTranslationBubbleAtMouse(text) {
                 'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+                'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'
             };
@@ -591,6 +592,7 @@ async function showTranslationBubble(x, y, text) {
                 'ERROR:BAIDU_54005': 'Baidu Error: Long Query Frequency Too High',
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
+                'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'
             };

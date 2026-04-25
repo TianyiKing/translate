@@ -64,12 +64,32 @@
 
     <div class="separator"></div>
 
-    <div class="toggle-group">
-      <label class="switch">
-        <input type="checkbox" id="baiduToggle">
-        <span class="slider round"></span>
+    <div class="radio-group">
+      <label class="group-label">Translation Source</label>
+      <label class="radio-item">
+        <input type="radio" name="provider" value="google">
+        <span>Google</span>
       </label>
-      <span class="toggle-label">Enable Baidu Translate</span>
+      <label class="radio-item">
+        <input type="radio" name="provider" value="baidu">
+        <span>Baidu</span>
+      </label>
+      <label class="radio-item">
+        <input type="radio" name="provider" value="local">
+        <span>Local Model (mlx-vlm)</span>
+      </label>
+    </div>
+
+    <div class="radio-group">
+      <label class="group-label">TTS Source</label>
+      <label class="radio-item">
+        <input type="radio" name="ttsProvider" value="google">
+        <span>Google</span>
+      </label>
+      <label class="radio-item">
+        <input type="radio" name="ttsProvider" value="baidu">
+        <span>Baidu</span>
+      </label>
     </div>
 
     <div id="baiduSettings" class="settings-group hidden">
@@ -84,6 +104,20 @@
         </div>
       </div>
       <button id="saveBaiduKeys" class="secondary-btn">Save Keys</button>
+    </div>
+
+    <div id="localModelSettings" class="settings-group hidden">
+      <div id="localModelInputs">
+        <div class="input-group">
+          <label for="localModelName">Model Name</label>
+          <input type="text" id="localModelName" placeholder="mlx-community/gemma-4-31b-it-mxfp4">
+        </div>
+        <div class="input-group">
+          <label for="localModelPort">Port</label>
+          <input type="text" id="localModelPort" placeholder="8099">
+        </div>
+      </div>
+      <button id="saveLocalModel" class="secondary-btn">Save Settings</button>
     </div>
 
   </div>
