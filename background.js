@@ -350,6 +350,50 @@ async function fetchGoogleTTS(text) {
     }
 }
 
+// Helper to fetch Local TTS (mlx-audio Kokoro server, OpenAI-style /v1/audio/speech)
+// Returns { audioData: dataURL|null, errorCode?: 'CONNREFUSED'|'TIMEOUT'|'FAILED' }
+async function fetchLocalTTS(text, url, voice) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), LOCAL_TIMEOUT_MS);
+
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, voice }),
+                signal: controller.signal
+            });
+        } catch (networkError) {
+            clearTimeout(timeoutId);
+            if (networkError.name === 'AbortError') throw networkError;
+            console.error('Local TTS connection error:', networkError);
+            return { audioData: null, errorCode: 'CONNREFUSED' };
+        }
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            console.error('Local TTS HTTP error:', response.status, response.statusText);
+            return { audioData: null, errorCode: 'FAILED' };
+        }
+        const blob = await response.blob();
+        const audioData = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+        return { audioData };
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error('Local TTS Error: Request timed out');
+            return { audioData: null, errorCode: 'TIMEOUT' };
+        }
+        console.error('Local TTS Error:', error);
+        return { audioData: null, errorCode: 'FAILED' };
+    }
+}
+
 // Offscreen document management for audio playback
 let creatingOffscreen = null;
 
@@ -381,7 +425,8 @@ chrome.runtime.onInstalled.addListener(async () => {
     const result = await chrome.storage.local.get([
         'baiduAppId', 'baiduSecret',
         'useBaidu', 'provider', 'ttsProvider',
-        'localModelName', 'localModelPort'
+        'localModelName', 'localModelPort',
+        'localTtsUrl', 'localTtsVoice'
     ]);
 
     if (!result.baiduAppId && !result.baiduSecret) {
@@ -416,6 +461,12 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (!result.localModelPort) {
         migration.localModelPort = '8099';
     }
+    if (!result.localTtsUrl) {
+        migration.localTtsUrl = 'http://127.0.0.1:8098/v1/audio/speech';
+    }
+    if (!result.localTtsVoice) {
+        migration.localTtsVoice = 'af_heart';
+    }
     if (Object.keys(migration).length > 0) {
         await chrome.storage.local.set(migration);
     }
@@ -446,9 +497,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'SPEAK_TEXT') {
         (async () => {
             try {
-                const result = await chrome.storage.local.get(['ttsProvider']);
-                const fetchTTS = result.ttsProvider === 'baidu' ? fetchBaiduTTS : fetchGoogleTTS;
-                const audioData = await fetchTTS(request.text);
+                const result = await chrome.storage.local.get(['ttsProvider', 'localTtsUrl', 'localTtsVoice']);
+                const ttsProvider = result.ttsProvider || 'google';
+
+                let audioData = null;
+                let errorMessage = 'Failed to fetch audio';
+
+                if (ttsProvider === 'local') {
+                    const url = result.localTtsUrl || 'http://127.0.0.1:8098/v1/audio/speech';
+                    const voice = result.localTtsVoice || 'af_heart';
+                    const localResult = await fetchLocalTTS(request.text, url, voice);
+                    audioData = localResult.audioData;
+                    if (!audioData) {
+                        if (localResult.errorCode === 'CONNREFUSED') {
+                            errorMessage = 'Local TTS Server Unreachable (start mlx_audio TTS server)';
+                        } else if (localResult.errorCode === 'TIMEOUT') {
+                            errorMessage = 'Local TTS Timed Out';
+                        }
+                    }
+                } else if (ttsProvider === 'baidu') {
+                    audioData = await fetchBaiduTTS(request.text);
+                } else {
+                    audioData = await fetchGoogleTTS(request.text);
+                }
 
                 if (audioData) {
                     // Ensure offscreen document exists
@@ -458,7 +529,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         sendResponse(response || { success: false, error: 'No response from offscreen' });
                     });
                 } else {
-                    sendResponse({ success: false, error: 'Failed to fetch audio' });
+                    sendResponse({ success: false, error: errorMessage });
                 }
             } catch (error) {
                 console.error('SPEAK_TEXT error:', error);

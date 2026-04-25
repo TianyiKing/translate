@@ -10,7 +10,8 @@
   "host_permissions": [
     "https://translate.google.com/",
     "http://api.fanyi.baidu.com/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "action": {
     "default_popup": "popup.html",

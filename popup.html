@@ -90,6 +90,10 @@
         <input type="radio" name="ttsProvider" value="baidu">
         <span>Baidu</span>
       </label>
+      <label class="radio-item">
+        <input type="radio" name="ttsProvider" value="local">
+        <span>Local TTS (mlx-audio Kokoro)</span>
+      </label>
     </div>
 
     <div id="baiduSettings" class="settings-group hidden">
@@ -107,6 +111,7 @@
     </div>
 
     <div id="localModelSettings" class="settings-group hidden">
+      <label class="group-label">Local Model Settings</label>
       <div id="localModelInputs">
         <div class="input-group">
           <label for="localModelName">Model Name</label>
@@ -117,7 +122,39 @@
           <input type="text" id="localModelPort" placeholder="8099">
         </div>
       </div>
-      <button id="saveLocalModel" class="secondary-btn">Save Settings</button>
+      <button id="saveLocalModel" class="secondary-btn">Save Model Settings</button>
+    </div>
+
+    <div id="localTtsSettings" class="settings-group hidden">
+      <label class="group-label">Local TTS Settings</label>
+      <div id="localTtsInputs">
+        <div class="input-group">
+          <label for="localTtsUrl">Endpoint URL</label>
+          <input type="text" id="localTtsUrl" placeholder="http://127.0.0.1:8098/v1/audio/speech">
+        </div>
+        <div class="input-group">
+          <label>Voice</label>
+          <div class="radio-group">
+            <label class="radio-item">
+              <input type="radio" name="localTtsVoice" value="af_heart">
+              <span>af_heart (US Female)</span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="localTtsVoice" value="am_michael">
+              <span>am_michael (US Male)</span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="localTtsVoice" value="bf_emma">
+              <span>bf_emma (UK Female)</span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="localTtsVoice" value="bm_george">
+              <span>bm_george (UK Male)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <button id="saveLocalTts" class="secondary-btn">Save TTS Settings</button>
     </div>
 
   </div>

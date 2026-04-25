@@ -255,7 +255,8 @@ input:checked+.slider:before {
   margin-bottom: 12px;
 }
 
-.settings-group input {
+.settings-group input[type="text"],
+.settings-group input[type="password"] {
   width: 100%;
   padding: 8px;
   border: 1px solid var(--border-color);
@@ -264,7 +265,8 @@ input:checked+.slider:before {
   box-sizing: border-box;
 }
 
-.settings-group input:focus {
+.settings-group input[type="text"]:focus,
+.settings-group input[type="password"]:focus {
   outline: none;
   border-color: var(--primary-color);
 }
@@ -283,13 +285,14 @@ input:checked+.slider:before {
   gap: 6px;
 }
 
-.radio-group .group-label {
+.group-label {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 2px;
+  display: block;
 }
 
 .radio-item {

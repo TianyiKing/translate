@@ -20,11 +20,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveLocalModelBtn = document.getElementById('saveLocalModel');
   const localModelInputs = document.getElementById('localModelInputs');
 
+  const localTtsSettings = document.getElementById('localTtsSettings');
+  const localTtsUrl = document.getElementById('localTtsUrl');
+  const localTtsVoiceRadios = document.querySelectorAll('input[name="localTtsVoice"]');
+  const saveLocalTtsBtn = document.getElementById('saveLocalTts');
+  const localTtsInputs = document.getElementById('localTtsInputs');
+
   const translateBtn = document.getElementById('translateBtn');
   const outputText = document.getElementById('outputText');
 
   const DEFAULT_LOCAL_MODEL = 'mlx-community/gemma-4-31b-it-mxfp4';
   const DEFAULT_LOCAL_PORT = '8099';
+  const DEFAULT_LOCAL_TTS_URL = 'http://127.0.0.1:8098/v1/audio/speech';
+  const DEFAULT_LOCAL_TTS_VOICE = 'af_heart';
 
   function setRadio(radios, value) {
     radios.forEach(r => { r.checked = r.value === value; });
@@ -51,6 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateLocalTtsSettingsVisibility(ttsProvider) {
+    if (ttsProvider === 'local') {
+      localTtsSettings.classList.remove('hidden');
+    } else {
+      localTtsSettings.classList.add('hidden');
+    }
+  }
+
   // Load states
   chrome.storage.local.get(
     [
@@ -58,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
       'provider', 'ttsProvider', 'useBaidu',
       'baiduAppId', 'baiduSecret',
       'localModelName', 'localModelPort',
+      'localTtsUrl', 'localTtsVoice',
       'lastInput', 'lastOutput'
     ],
     async (result) => {
@@ -108,14 +125,27 @@ document.addEventListener('DOMContentLoaded', () => {
       localModelPort.value = result.localModelPort || DEFAULT_LOCAL_PORT;
       if (result.localModelName && result.localModelPort) {
         localModelInputs.classList.add('hidden');
-        saveLocalModelBtn.textContent = 'Edit Settings';
+        saveLocalModelBtn.textContent = 'Edit Model Settings';
       } else {
         localModelInputs.classList.remove('hidden');
-        saveLocalModelBtn.textContent = 'Save Settings';
+        saveLocalModelBtn.textContent = 'Save Model Settings';
+      }
+
+      // Local TTS settings UI
+      localTtsUrl.value = result.localTtsUrl || DEFAULT_LOCAL_TTS_URL;
+      const ttsVoice = result.localTtsVoice || DEFAULT_LOCAL_TTS_VOICE;
+      setRadio(localTtsVoiceRadios, ttsVoice);
+      if (result.localTtsUrl && result.localTtsVoice) {
+        localTtsInputs.classList.add('hidden');
+        saveLocalTtsBtn.textContent = 'Edit TTS Settings';
+      } else {
+        localTtsInputs.classList.remove('hidden');
+        saveLocalTtsBtn.textContent = 'Save TTS Settings';
       }
 
       updateBaiduSettingsVisibility(provider, ttsProvider);
       updateLocalModelSettingsVisibility(provider);
+      updateLocalTtsSettingsVisibility(ttsProvider);
     }
   );
 
@@ -169,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ttsProvider = getRadio(ttsProviderRadios);
       chrome.storage.local.set({ ttsProvider });
       updateBaiduSettingsVisibility(provider, ttsProvider);
+      updateLocalTtsSettingsVisibility(ttsProvider);
     });
   });
 
@@ -193,9 +224,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Save/Edit Local Model Settings
   saveLocalModelBtn.addEventListener('click', () => {
-    if (saveLocalModelBtn.textContent === 'Edit Settings') {
+    if (saveLocalModelBtn.textContent === 'Edit Model Settings') {
       localModelInputs.classList.remove('hidden');
-      saveLocalModelBtn.textContent = 'Save Settings';
+      saveLocalModelBtn.textContent = 'Save Model Settings';
       return;
     }
     const name = localModelName.value.trim();
@@ -210,7 +241,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     chrome.storage.local.set({ localModelName: name, localModelPort: port }, () => {
       localModelInputs.classList.add('hidden');
-      saveLocalModelBtn.textContent = 'Edit Settings';
+      saveLocalModelBtn.textContent = 'Edit Model Settings';
+    });
+  });
+
+  // Save/Edit Local TTS Settings
+  saveLocalTtsBtn.addEventListener('click', () => {
+    if (saveLocalTtsBtn.textContent === 'Edit TTS Settings') {
+      localTtsInputs.classList.remove('hidden');
+      saveLocalTtsBtn.textContent = 'Save TTS Settings';
+      return;
+    }
+    const url = localTtsUrl.value.trim();
+    const voice = getRadio(localTtsVoiceRadios);
+    if (!url) {
+      alert('Please enter the Endpoint URL.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      alert('Endpoint URL must start with http:// or https://');
+      return;
+    }
+    if (!voice) {
+      alert('Please select a Voice.');
+      return;
+    }
+    chrome.storage.local.set({ localTtsUrl: url, localTtsVoice: voice }, () => {
+      localTtsInputs.classList.add('hidden');
+      saveLocalTtsBtn.textContent = 'Edit TTS Settings';
     });
   });
 
