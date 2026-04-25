@@ -10,7 +10,7 @@ Premium Translator —— Chrome MV3 扩展，英译中 + TTS。无构建系统�
 
 - **加载扩展**：Chrome → `chrome://extensions` → 开启「开发者模式」→「加载已解压的扩展程序」→ 选择本仓库根目录。
 - **本地模型源**：选 Local Model 前，需先在终端启动 `mlx_vlm.server --model mlx-community/gemma-4-31b-it-mxfp4 --port 8099`（底层框架是 mlx-vlm，OpenAI 兼容 `/v1/chat/completions`，翻译用例只走纯文本 messages）。
-- **本地 TTS 源**：选 Local TTS 前，需先在 `tts` conda 环境里启动 mlx-audio Kokoro server（默认监听 `http://127.0.0.1:8098/v1/audio/speech`，模型 `mlx-community/Kokoro-82M-bf16`）。请求体 `{text, voice}`，响应是 WAV 二进制流，扩展端转 dataURL 经 offscreen 播放。
+- **本地 TTS 源**：选 Local TTS 前，需先在 `kokoro` conda 环境里启动 mlx-audio Kokoro server（默认监听 `http://127.0.0.1:8098/v1/audio/speech`，模型 `mlx-community/Kokoro-82M-bf16`）。请求体 `{text, voice}`，响应是 WAV 二进制流，扩展端转 dataURL 经 offscreen 播放。
 - **修改后调试**：在 `chrome://extensions` 中点击该扩展的「重新加载」按钮；如改动了 content script，还需刷新目标网页。
 - **查看日志**：
   - background service worker：`chrome://extensions` → 该扩展 → 「Service worker」链接打开 DevTools。
@@ -54,6 +54,8 @@ content.js ┘                  │
 - **`provider` 与 `ttsProvider` 独立存储**：翻译源和 TTS 源各走各的两个独立字段。`provider ∈ {google, baidu, local}`（local = mlx-vlm 翻译）、`ttsProvider ∈ {google, baidu, local}`（local = mlx-audio Kokoro TTS）。两个 local 是不同的服务、不同的端口、不同的设置块。Baidu 凭据输入区当 `provider==='baidu' || ttsProvider==='baidu'` 任一为真时显示。
 - **本地超时 30s**：`LOCAL_TIMEOUT_MS = 30000` 同时适用于 `fetchLocalModelTranslation` 和 `fetchLocalTTS`（首次加载模型慢），其他源仍用 `TIMEOUT_MS = 5000`。
 - **本地连接失败专用错误码**：本地翻译路径在连接拒绝时返回 `'ERROR:LOCAL_CONNREFUSED'`，提示用户启动 `mlx_vlm.server`。本地 TTS 路径不用 ERROR: 前缀，而是回包 `{success: false, error: 'Local TTS Server Unreachable (start mlx_audio TTS server)'}`，因为 TTS 调用方原本就走 alert 路径。
+- **Google 反爬专用错误码**：Google 在 IP 被打 unusual-traffic 标记后会 302 跳转到 `https://www.google.com/sorry/index?...` CAPTCHA 页，`fetch()` 默认透明跟随 302，最终 `response.ok===true` 但 body 是 HTML，`response.json()` 抛异常会被误归类为 `ERROR:FAILED`。所以 `fetchGoogleTranslation` 在 fetch 后必须先看 `response.url.includes('/sorry/')`，命中则返回 `'ERROR:GOOGLE_BLOCKED'`，UI 显示 "Google Blocked by Anti-Bot (Try Baidu/Local)"。`fetchGoogleTTS` 暂未做这层判定（失败走静默 alert 路径，不影响主可见错误链）。
+- **Google 触发限流/反爬后的手动解决方案**：可尝试访问 `https://translate.google.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=hello` 手动验证几次看能否解开限流/反爬。
 - **localhost vs 127.0.0.1 是不同 origin**：`manifest.json` 的 `host_permissions` 必须同时含 `http://localhost/*` 和 `http://127.0.0.1/*`（mlx-vlm 用 localhost、mlx-audio 用 127.0.0.1）。
 - **CSS 类前缀 `pt-`**：所有注入到宿主页面的 DOM 必须带 `pt-` 前缀，避免与宿主样式冲突。`.pt-floating-widget` 用 `z-index: 2147483647`（int32 max）。
 - **`isEnglish` 判定**：`/[a-zA-Z]{2,}/`，只要含两个连续英文字母就算，不是严格判定纯英文。

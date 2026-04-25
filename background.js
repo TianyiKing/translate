@@ -227,6 +227,13 @@ async function fetchGoogleTranslation(text) {
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
 
+        // Anti-bot CAPTCHA detection: Google 302-redirects to /sorry/index when IP is rate-limited.
+        // fetch follows the redirect transparently, so response.url is the final URL.
+        if (response.url.includes('/sorry/')) {
+            console.error('Google Translate blocked by anti-bot CAPTCHA. Final URL:', response.url);
+            return 'ERROR:GOOGLE_BLOCKED';
+        }
+
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         if (data && data[0]) {

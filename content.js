@@ -488,6 +488,7 @@ async function showTranslationBubbleAtMouse(text) {
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
                 'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
+                'ERROR:GOOGLE_BLOCKED': 'Google Blocked by Anti-Bot (Try Baidu/Local)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'
             };
@@ -593,6 +594,7 @@ async function showTranslationBubble(x, y, text) {
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
                 'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
+                'ERROR:GOOGLE_BLOCKED': 'Google Blocked by Anti-Bot (Try Baidu/Local)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'
             };
