@@ -2,6 +2,19 @@
 
 const TIMEOUT_MS = 5000;
 const LOCAL_TIMEOUT_MS = 30000;
+const DEFAULT_HY_MT2_PORT = 8096;
+const DEFAULT_HY_MT2_TIMEOUT_SECONDS = 32;
+
+function getHyMt2Settings(settings) {
+    const port = Number(settings.hyMt2Port);
+    const timeoutSeconds = Number(settings.hyMt2TimeoutSeconds);
+    return {
+        port: Number.isInteger(port) && port >= 1 && port <= 65535
+            ? port : DEFAULT_HY_MT2_PORT,
+        timeoutSeconds: Number.isInteger(timeoutSeconds) && timeoutSeconds >= 1 && timeoutSeconds <= 120
+            ? timeoutSeconds : DEFAULT_HY_MT2_TIMEOUT_SECONDS
+    };
+}
 
 // MD5 Helper (Compact implementation)
 function md5(string) {
@@ -318,6 +331,52 @@ async function fetchLocalModelTranslation(text, modelName, port) {
     }
 }
 
+async function fetchHyMt2Translation(text, settings) {
+    const { port, timeoutSeconds } = getHyMt2Settings(settings);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+    // Keep the MV3 worker active only while this potentially long request is pending.
+    const keepAliveId = setInterval(() => {
+        chrome.runtime.getPlatformInfo().catch(error => {
+            console.error('Hy-MT2 worker keepalive failed:', error);
+        });
+    }, 20000);
+
+    try {
+        let response;
+        try {
+            response = await fetch(`http://localhost:${port}/v1/translate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, source_lang: 'en', target_lang: 'zh' }),
+                signal: controller.signal
+            });
+        } catch (error) {
+            if (controller.signal.aborted) throw error;
+            console.error('Hy-MT2 connection error:', error);
+            return 'ERROR:HY_MT2_CONNREFUSED';
+        }
+
+        if (!response.ok) {
+            console.error('Hy-MT2 HTTP error:', response.status, response.statusText);
+            return 'ERROR:FAILED';
+        }
+        const data = await response.json();
+        if (typeof data?.translated_text !== 'string' || !data.translated_text.trim()) {
+            console.error('Hy-MT2 invalid translation response');
+            return 'ERROR:FAILED';
+        }
+        return data.translated_text.trim();
+    } catch (error) {
+        if (controller.signal.aborted) return 'ERROR:TIMEOUT';
+        console.error('Hy-MT2 translation error:', error);
+        return 'ERROR:FAILED';
+    } finally {
+        clearTimeout(timeoutId);
+        clearInterval(keepAliveId);
+    }
+}
+
 // Helper to fetch Baidu TTS
 async function fetchBaiduTTS(text) {
     try {
@@ -441,6 +500,7 @@ chrome.runtime.onInstalled.addListener(async () => {
         'baiduAppId', 'baiduSecret',
         'useBaidu', 'provider', 'ttsProvider',
         'localModelName', 'localModelPort',
+        'hyMt2Port', 'hyMt2TimeoutSeconds',
         'localTtsUrl', 'localTtsVoice'
     ]);
 
@@ -476,6 +536,12 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (!result.localModelPort) {
         migration.localModelPort = '8099';
     }
+    if (result.hyMt2Port === undefined) {
+        migration.hyMt2Port = DEFAULT_HY_MT2_PORT;
+    }
+    if (result.hyMt2TimeoutSeconds === undefined) {
+        migration.hyMt2TimeoutSeconds = DEFAULT_HY_MT2_TIMEOUT_SECONDS;
+    }
     if (!result.localTtsUrl) {
         migration.localTtsUrl = 'http://127.0.0.1:8098/v1/audio/speech';
     }
@@ -490,11 +556,21 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'TRANSLATE_TEXT') {
         chrome.storage.local.get(
-            ['provider', 'baiduAppId', 'baiduSecret', 'localModelName', 'localModelPort'],
+            [
+                'provider', 'baiduAppId', 'baiduSecret', 'localModelName', 'localModelPort',
+                'hyMt2Port', 'hyMt2TimeoutSeconds'
+            ],
             (result) => {
-                const provider = result.provider || 'google';
+                if (chrome.runtime.lastError) {
+                    sendResponse({ translation: 'ERROR:FAILED' });
+                    return;
+                }
+                const provider = ['google', 'baidu', 'local', 'hy_mt2'].includes(request.provider)
+                    ? request.provider : result.provider || 'google';
                 let promise;
-                if (provider === 'local') {
+                if (provider === 'hy_mt2') {
+                    promise = fetchHyMt2Translation(request.text, result);
+                } else if (provider === 'local') {
                     const modelName = result.localModelName || 'mlx-community/gemma-4-31b-it-mxfp4';
                     const port = result.localModelPort || '8099';
                     promise = fetchLocalModelTranslation(request.text, modelName, port);

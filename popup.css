@@ -256,6 +256,7 @@ input:checked+.slider:before {
 }
 
 .settings-group input[type="text"],
+.settings-group input[type="number"],
 .settings-group input[type="password"] {
   width: 100%;
   padding: 8px;
@@ -266,6 +267,7 @@ input:checked+.slider:before {
 }
 
 .settings-group input[type="text"]:focus,
+.settings-group input[type="number"]:focus,
 .settings-group input[type="password"]:focus {
   outline: none;
   border-color: var(--primary-color);

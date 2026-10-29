@@ -6,29 +6,37 @@ function isEnglish(text) {
 }
 
 // Helper to call translation API via Background Script
-// Helper to call translation API via Background Script
-function translateText(text) {
-    return new Promise((resolve) => {
-        let isResolved = false;
-        const timeoutId = setTimeout(() => {
-            if (!isResolved) {
-                isResolved = true;
-                resolve('ERROR:TIMEOUT');
-            }
-            if (!isResolved) {
-                isResolved = true;
-                resolve('ERROR:TIMEOUT');
-            }
-        }, 5000); // 5 second timeout
-
-        chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
-            if (!isResolved) {
+async function translateText(text) {
+    try {
+        const settings = await chrome.storage.local.get(['provider']);
+        const provider = settings.provider || 'google';
+        return await new Promise((resolve) => {
+            let isResolved = false;
+            let timeoutId;
+            const finish = (translation) => {
+                if (isResolved) return;
                 isResolved = true;
                 clearTimeout(timeoutId);
-                resolve(response ? response.translation : null);
+                resolve(translation);
+            };
+            // Hy-MT2 uses the background request's configurable timeout for every entry point.
+            if (provider !== 'hy_mt2') {
+                timeoutId = setTimeout(() => finish('ERROR:TIMEOUT'), 5000);
+            }
+
+            try {
+                chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text, provider }, (response) => {
+                    const error = chrome.runtime.lastError;
+                    finish(error ? 'ERROR:FAILED' : response?.translation || 'ERROR:FAILED');
+                });
+            } catch (error) {
+                finish('ERROR:FAILED');
             }
         });
-    });
+    } catch (error) {
+        console.error('Translation request failed:', error);
+        return 'ERROR:FAILED';
+    }
 }
 
 // Helper to play audio via Background Script (uses offscreen document to bypass CSP)
@@ -274,7 +282,9 @@ async function startTranslation() {
                         translation = '翻译错误';
                     } else if (translation === 'ERROR:TIMEOUT') {
                         translation = '翻译超时';
-                    } else if (translation === 'ERROR:FAILED') {
+                    } else if (translation === 'ERROR:HY_MT2_CONNREFUSED') {
+                        translation = '无法连接 Hy-MT2 翻译服务';
+                    } else if (translation.startsWith('ERROR:')) {
                         translation = '翻译错误';
                     } else {
                         translationCache.set(text, translation);
@@ -411,7 +421,7 @@ async function showTranslationBubbleAtMouse(text) {
 
     // Helper to update position
     const updatePosition = () => {
-        if (!activeBubble) return;
+        if (activeBubble !== bubble || !bubble.isConnected) return;
 
         // Get dimensions
         const rect = bubble.getBoundingClientRect();
@@ -477,7 +487,7 @@ async function showTranslationBubbleAtMouse(text) {
     updatePosition();
 
     const translation = await translateText(text);
-    if (activeBubble) { // Check if still active
+    if (activeBubble === bubble && bubble.isConnected) {
         if (translation && !translation.startsWith('ERROR:')) {
             activeBubble.textContent = translation;
         } else {
@@ -488,6 +498,7 @@ async function showTranslationBubbleAtMouse(text) {
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
                 'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
+                'ERROR:HY_MT2_CONNREFUSED': 'Hy-MT2 Server Unreachable (Check Service and Port)',
                 'ERROR:GOOGLE_BLOCKED': 'Google Blocked by Anti-Bot (Try Baidu/Local)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'
@@ -583,7 +594,7 @@ async function showTranslationBubble(x, y, text) {
     activeBubble = bubble;
 
     const translation = await translateText(text);
-    if (activeBubble) { // Check if still active
+    if (activeBubble === bubble && bubble.isConnected) {
         if (translation && !translation.startsWith('ERROR:')) {
             activeBubble.textContent = translation;
         } else {
@@ -594,6 +605,7 @@ async function showTranslationBubble(x, y, text) {
                 'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User',
                 'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
                 'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
+                'ERROR:HY_MT2_CONNREFUSED': 'Hy-MT2 Server Unreachable (Check Service and Port)',
                 'ERROR:GOOGLE_BLOCKED': 'Google Blocked by Anti-Bot (Try Baidu/Local)',
                 'ERROR:TIMEOUT': 'Translation Timed Out',
                 'ERROR:FAILED': 'Translation Failed'

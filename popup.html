@@ -78,6 +78,10 @@
         <input type="radio" name="provider" value="local">
         <span>Local Model (mlx-vlm)</span>
       </label>
+      <label class="radio-item">
+        <input type="radio" name="provider" value="hy_mt2">
+        <span>Hy-MT2</span>
+      </label>
     </div>
 
     <div class="radio-group">
@@ -123,6 +127,21 @@
         </div>
       </div>
       <button id="saveLocalModel" class="secondary-btn">Save Model Settings</button>
+    </div>
+
+    <div id="hyMt2Settings" class="settings-group hidden">
+      <label class="group-label">Hy-MT2 Settings</label>
+      <div id="hyMt2Inputs">
+        <div class="input-group">
+          <label for="hyMt2Port">Port</label>
+          <input type="number" id="hyMt2Port" min="1" max="65535" step="1" placeholder="8096">
+        </div>
+        <div class="input-group">
+          <label for="hyMt2TimeoutSeconds">Timeout (seconds)</label>
+          <input type="number" id="hyMt2TimeoutSeconds" min="1" max="120" step="1" placeholder="32">
+        </div>
+      </div>
+      <button id="saveHyMt2" class="secondary-btn">Save Hy-MT2 Settings</button>
     </div>
 
     <div id="localTtsSettings" class="settings-group hidden">

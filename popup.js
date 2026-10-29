@@ -20,6 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveLocalModelBtn = document.getElementById('saveLocalModel');
   const localModelInputs = document.getElementById('localModelInputs');
 
+  const hyMt2Settings = document.getElementById('hyMt2Settings');
+  const hyMt2Port = document.getElementById('hyMt2Port');
+  const hyMt2TimeoutSeconds = document.getElementById('hyMt2TimeoutSeconds');
+  const saveHyMt2Btn = document.getElementById('saveHyMt2');
+  const hyMt2Inputs = document.getElementById('hyMt2Inputs');
+
   const localTtsSettings = document.getElementById('localTtsSettings');
   const localTtsUrl = document.getElementById('localTtsUrl');
   const localTtsVoiceRadios = document.querySelectorAll('input[name="localTtsVoice"]');
@@ -31,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const DEFAULT_LOCAL_MODEL = 'mlx-community/gemma-4-31b-it-mxfp4';
   const DEFAULT_LOCAL_PORT = '8099';
+  const DEFAULT_HY_MT2_PORT = 8096;
+  const DEFAULT_HY_MT2_TIMEOUT_SECONDS = 32;
   const DEFAULT_LOCAL_TTS_URL = 'http://127.0.0.1:8098/v1/audio/speech';
   const DEFAULT_LOCAL_TTS_VOICE = 'af_heart';
 
@@ -67,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateHyMt2SettingsVisibility(provider) {
+    hyMt2Settings.classList.toggle('hidden', provider !== 'hy_mt2');
+  }
+
   // Load states
   chrome.storage.local.get(
     [
@@ -74,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
       'provider', 'ttsProvider', 'useBaidu',
       'baiduAppId', 'baiduSecret',
       'localModelName', 'localModelPort',
+      'hyMt2Port', 'hyMt2TimeoutSeconds',
       'localTtsUrl', 'localTtsVoice',
       'lastInput', 'lastOutput'
     ],
@@ -131,6 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
         saveLocalModelBtn.textContent = 'Save Model Settings';
       }
 
+      const savedPort = Number(result.hyMt2Port);
+      const savedTimeout = Number(result.hyMt2TimeoutSeconds);
+      const validPort = Number.isInteger(savedPort) && savedPort >= 1 && savedPort <= 65535;
+      const validTimeout = Number.isInteger(savedTimeout) && savedTimeout >= 1 && savedTimeout <= 120;
+      hyMt2Port.value = validPort ? savedPort : DEFAULT_HY_MT2_PORT;
+      hyMt2TimeoutSeconds.value = validTimeout ? savedTimeout : DEFAULT_HY_MT2_TIMEOUT_SECONDS;
+      hyMt2Inputs.classList.toggle('hidden', validPort && validTimeout);
+      saveHyMt2Btn.textContent = validPort && validTimeout ? 'Edit Hy-MT2 Settings' : 'Save Hy-MT2 Settings';
+
       // Local TTS settings UI
       localTtsUrl.value = result.localTtsUrl || DEFAULT_LOCAL_TTS_URL;
       const ttsVoice = result.localTtsVoice || DEFAULT_LOCAL_TTS_VOICE;
@@ -145,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateBaiduSettingsVisibility(provider, ttsProvider);
       updateLocalModelSettingsVisibility(provider);
+      updateHyMt2SettingsVisibility(provider);
       updateLocalTtsSettingsVisibility(ttsProvider);
     }
   );
@@ -189,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chrome.storage.local.set({ provider });
       updateBaiduSettingsVisibility(provider, ttsProvider);
       updateLocalModelSettingsVisibility(provider);
+      updateHyMt2SettingsVisibility(provider);
     });
   });
 
@@ -245,6 +269,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  saveHyMt2Btn.addEventListener('click', () => {
+    if (hyMt2Inputs.classList.contains('hidden')) {
+      hyMt2Inputs.classList.remove('hidden');
+      saveHyMt2Btn.textContent = 'Save Hy-MT2 Settings';
+      return;
+    }
+    const port = Number(hyMt2Port.value);
+    const timeoutSeconds = Number(hyMt2TimeoutSeconds.value);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      alert('Port must be an integer between 1 and 65535.');
+      return;
+    }
+    if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 120) {
+      alert('Timeout must be an integer between 1 and 120 seconds.');
+      return;
+    }
+    chrome.storage.local.set({ hyMt2Port: port, hyMt2TimeoutSeconds: timeoutSeconds }, () => {
+      if (chrome.runtime.lastError) {
+        alert('Could not save Hy-MT2 settings.');
+        return;
+      }
+      hyMt2Inputs.classList.add('hidden');
+      saveHyMt2Btn.textContent = 'Edit Hy-MT2 Settings';
+    });
+  });
+
   // Save/Edit Local TTS Settings
   saveLocalTtsBtn.addEventListener('click', () => {
     if (saveLocalTtsBtn.textContent === 'Edit TTS Settings') {
@@ -283,7 +333,9 @@ document.addEventListener('DOMContentLoaded', () => {
     outputText.textContent = 'Translating...';
 
     try {
-      chrome.runtime.sendMessage({ action: 'TRANSLATE_TEXT', text }, (response) => {
+      chrome.runtime.sendMessage({
+        action: 'TRANSLATE_TEXT', text, provider: getRadio(providerRadios) || 'google'
+      }, (response) => {
         if (chrome.runtime.lastError) {
           const msg = 'Error: ' + chrome.runtime.lastError.message;
           outputText.textContent = msg;
@@ -299,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
               'ERROR:BAIDU_52003': 'Baidu Error: Unauthorized User (Check App ID)',
               'ERROR:BAIDU_58002': 'Baidu Error: Service Timeout',
               'ERROR:LOCAL_CONNREFUSED': 'Local Model Server Unreachable (Start mlx_vlm.server)',
+              'ERROR:HY_MT2_CONNREFUSED': 'Hy-MT2 Server Unreachable (Check Service and Port)',
               'ERROR:GOOGLE_BLOCKED': 'Google Blocked by Anti-Bot (Try Baidu/Local)',
               'ERROR:TIMEOUT': 'Translation Timed Out',
               'ERROR:FAILED': 'Translation Failed'
